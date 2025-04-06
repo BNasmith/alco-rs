@@ -1,13 +1,18 @@
-use std::ops::{Add, Mul, Div};
-use std::iter::Sum;
+use std::ops::{Add, Sub, Mul, Div};
+use std::iter::{Sum, FromIterator};
+use std::hash::{Hash, Hasher};
+// use num::Integer;
+
 
 /// A struct representing an octavian integer, provided that the coefficients are integer valued. Generalized to general type `T` to allow for general octonion calculations.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Octavian<T> 
 {
     /// Coefficients correspond to the basis vectors given in my thesis.
     pub coefficients: Vec<T>,
+    // Records the norm of the octavian.
     pub norm: T,
+    // Records the trace of the octavian, which is twice the real component. 
     pub trace: T,
 }
 
@@ -15,19 +20,19 @@ impl<T> Octavian<T>
 where 
     T: Copy + Default + Clone + Add<Output = T> + Mul<Output = T> + From<i8> + Div<i8, Output = T> + Sum<T>,
 {
-    /// Creates a new Octavian with the given coefficients.
+    /// Creates a new Octavian with the given coefficients. The norm and trace are also computed and stored. 
     pub fn new(coefficients: Vec<T>) -> Self {
         assert_eq!(coefficients.len(), 8);
         
         Self {
-            // Specify the coefficients 
+            // Specify the coefficients. 
             coefficients: coefficients.clone(), 
-            // Calculate the norm
+            // Calculate the norm.
             norm: Octavian::<T>::inner_product(
                 coefficients.clone(), 
                 coefficients.clone()
             )/2,
-            // Calculate the trace
+            // Calculate the trace.
             trace: Octavian::<T>::inner_product(
                 coefficients.clone(), 
                 // Octavian::one().coefficients,
@@ -123,7 +128,7 @@ where
     //     Octavian::from_array([0, 0, 0, 0, 0, 0, 0, 1])
     // ];
 
-    pub const OCTAVIAN_ADJOINT_MATRICES: [[[i8; 8]; 8]; 8] = 
+    const OCTAVIAN_ADJOINT_MATRICES: [[[i8; 8]; 8]; 8] = 
     [ [ [ 2, -1, -1, 0, 1, 0, -1, 0 ], [ 3, -1, -1, 0, 1, 0, -2, 1 ],
         [ 4, -2, -2, 0, 2, 0, -2, 1 ], [ 6, -2, -3, 0, 3, -1, -3, 2 ],
         [ 5, -1, -3, 0, 2, 0, -3, 2 ], [ 4, -1, -3, 1, 1, 0, -2, 1 ],
@@ -401,7 +406,50 @@ where
 
 }
 
-    ///     Implement right scalar multiplication for Octavian<T> where T is the scalar. 
+impl<T> Octavian<T>
+where 
+    T: Copy + Default + Clone + Add<Output = T> + Sub<Output = T> + Mul<Output = T> + From<i8> + Div<i8, Output = T> + Sum<T>, 
+{
+/// Implement octonion conjugation, which has the formula x.conj() = Trace(x)*x.one() - x.
+/// ```
+/// use alco::Octavian;
+/// let x = Octavian::<i8>::from_array([1,2,0,0,0,0,0,1]);
+/// let one = Octavian::<i8>::one();
+/// assert_eq!(one * x.norm, x.clone()*x.conj());
+/// ```
+    pub fn conj(self) -> Self {
+        let result = (Octavian::<T>::one() * self.trace) - self;
+        result
+    }
+
+/// Compute the norm of an Octavian directly.
+/// ```
+/// use alco::Octavian;
+/// let x = Octavian::<i8>::from_array([0,0,0,3,0,0,0,1]);
+/// let one = Octavian::<i8>::one();
+/// assert_eq!(one * x.norm, x.clone()*x.conj());
+/// ```
+    pub fn check_norm(self) -> T {
+        let result = self.clone()*self.conj();
+        result.trace/2
+    }
+
+/// Compute the trace of an Octavian directly.
+/// ```
+/// use alco::Octavian;
+/// let x = Octavian::<i8>::from_array([0,0,0,3,0,0,0,1]);
+/// let one = Octavian::<i8>::one();
+/// assert_eq!(one * x.trace, x.clone() + x.conj());
+/// ```
+    pub fn check_trace(self) -> T {
+        let result = self.clone() + self.conj();
+        result.trace
+    }
+}
+
+
+
+/// Implement right scalar multiplication on an Octavian<T> where T is the scalar. 
     impl<T> Mul<T> for Octavian<T>
     where 
         T: Copy + Default + Clone + Add<Output = T> + Mul<Output = T> + From<i8> + Div<i8, Output = T> + Sum<T>,
@@ -440,6 +488,25 @@ where
     }
 }
 
+/// Implements subtraction for Octavians.
+impl<T> Sub for Octavian<T>
+where 
+    T: Copy + Default + Clone + Add<Output = T> + Sub<Output = T> + Mul<Output = T> + From<i8> + Div<i8, Output = T> + Sum<T>,
+{
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self {
+        let mut z: Vec<T> = Vec::new();
+        for (a, b) in self.coefficients.clone().into_iter().zip(rhs.coefficients.clone()) {
+            z.push(a.sub(b));
+        }
+        Octavian { 
+            coefficients: z.clone(),
+            norm: Octavian::<T>::inner_product(z.clone(), z.clone())/2,
+            trace: self.trace - rhs.trace 
+        }
+    }
+}
+
 
 /// Left adjoint matrix for an Octavian. 
 pub fn left_adjoint_matrix<T>(oct: Octavian<T>) -> [[T; 8]; 8]
@@ -461,44 +528,30 @@ where
     result
 }
 
-// /// Transposed matrix. 
-// fn transpose<T: Default + Clone>(matrix: [[T;8];8]) -> Vec<Vec<T>> {
-//     let rows = matrix.len();
-//     let cols = matrix[0].len();
-//     let mut transposed = vec![vec![matrix[0][0].clone(); rows]; cols];
-
-//     for i in 0..rows {
-//         for j in 0..cols {
-//             transposed[j][i] = matrix[i][j].clone();
-//         }
-//     }
-
-//     transposed
-// }
-
-// /// Implement multiplication on Octavians using the OCTAVIAN_ADJOINT_MATRICES
+/// Implement multiplication on Octavians using the `OCTAVIAN_ADJOINT_MATRICES` constant.
+/// ```
+/// use::alco::Octavian;
+/// let x = Octavian::from_array([0,0,0,0,0,0,0,1]);
+/// let y = Octavian::from_array([0,0,0,0,0,0,1,0]);
+/// let z = x * y;
+/// assert_eq!( z.clone(), Octavian::from_array([-2, -2, -3, -4, -3, -2, -2, -1]));
+/// assert_eq!(z.clone().trace, 1);
+/// assert_eq!(z.clone().norm, 1);
+/// ``` 
 impl<T> Mul for Octavian<T>
 where 
     T: Copy + Default + Clone + Add<Output = T> + Mul<Output = T> + From<i8> + Div<i8, Output = T> + Sum<T>,
 {
     type Output = Self;
     fn mul(self, rhs: Self) -> Octavian<T> {
-        // Compute the new coefficients as the linear combination of the columns of the adjoint matrix. 
-        let mut matrix: [[T; 8]; 8] = left_adjoint_matrix(self.clone());
-        let coeffs = rhs.coefficients.clone();
-        for i in 0..8 {
-            for j in 0..8 {
-                matrix[i][j] = matrix[i][j]*coeffs[j];
-            }
-        }
-        // Next the result is a column vector taken by summing over the row entries.
-        let mut result = Vec::new();
-        for k in 0..8 {
-            let mut entry: T = 0.into();
-            for l in 0..8 {
-                entry = entry + matrix[k][l];
-            }
-            result.push(entry);
+        let mut result = Vec::new(); 
+        for row in left_adjoint_matrix(self.clone()) {
+            result.push(
+                row.into_iter()
+                .zip(rhs.coefficients.clone())
+                .map(|(a,b)| a * b)
+                .sum()
+            )
         }
         // Construct the product. 
         Octavian {
@@ -516,5 +569,74 @@ where
     }
 }
 
+impl<T> FromIterator<T> for Octavian<T>
+where
+    T: Copy + Default + Clone + Add<Output = T> + Mul<Output = T> + From<i8> + Div<i8, Output = T> + Sum<T>,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let coefficients: Vec<T> = iter.into_iter().collect();
+        assert_eq!(coefficients.len(), 8, "Octavian requires exactly 8 coefficients.");
+        Octavian::new(coefficients)
+    }
+}
+
+impl<T> Hash for Octavian<T>
+where
+    T: Hash + Eq,
+{
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.coefficients.hash(state);
+        self.norm.hash(state);
+        self.trace.hash(state);
+    }
+}
 
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    use std::collections::HashSet;
+
+    #[test]
+    /// Ensure that the definition of the identity Octavian is correct.
+    fn test_one() {
+        let one = Octavian::<i8>::one();
+        assert_eq!(one, Octavian::new(vec![ -2, -3, -4, -6, -5, -4, -3, -2 ]));
+    }
+
+    #[test]
+    /// Ensure that addition works.
+    fn test_addition() {
+        let one = Octavian::<i8>::one();
+        assert_eq!(one.clone() + one, Octavian::new(vec![ -4, -6, -8, -12, -10, -8, -6, -4 ]));
+    }
+
+    #[test]
+    /// Ensure that subtraction works.
+    fn test_subtraction() {
+        let one = Octavian::<i8>::one();
+        assert_eq!(one.clone() - one, Octavian::new(vec![ 0i8; 8]));
+    }
+
+    #[test]
+    /// Ensure that the 240 Octavian units form a closed set under multiplication.
+    fn closure_of_units() {
+        let mut units: HashSet<Octavian<i8>> = HashSet::new();
+        for u in Octavian::<i8>::OCTAVIAN_UNITS_COEFFICIENTS {
+            let x = Octavian::from_array(u);
+            units.insert(x);
+        }
+        assert_eq!(240, units.len());
+        let mut result = HashSet::<Octavian<i8>>::new();
+        for u in &units {
+            for v in &units {
+                result.insert(u.clone() * v.clone());    
+            }
+        }
+        assert_eq!(240, result.len())
+    }    
+}
+
+
+// #[test]
