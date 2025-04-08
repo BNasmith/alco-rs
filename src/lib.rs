@@ -23,7 +23,7 @@ impl<T> Octavian<T> {
     }
 }
 
-impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero> Octavian<T> {
+impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Octavian<T> {
     /// Multiplies `self` by the scalar `t`.
     #[inline]
     pub fn scale(&self, t: T) -> Self {
@@ -371,12 +371,23 @@ impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero> Octavian<T> {
     [   2,   3,   4,   6,   5,   4,   3,   1 ],
     [   2,   3,   4,   6,   5,   4,   3,   2 ] ];
 
+    pub const BASIS: [Octavian<T>; 8] = [
+        Octavian::new([T::ONE, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO]), 
+        Octavian::new([T::ZERO, T::ONE, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO]), 
+        Octavian::new([T::ZERO, T::ZERO, T::ONE, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO]), 
+        Octavian::new([T::ZERO, T::ZERO, T::ZERO, T::ONE, T::ZERO, T::ZERO, T::ZERO, T::ZERO]), 
+        Octavian::new([T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ONE, T::ZERO, T::ZERO, T::ZERO]), 
+        Octavian::new([T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ONE, T::ZERO, T::ZERO]), 
+        Octavian::new([T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ONE, T::ZERO]), 
+        Octavian::new([T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ZERO, T::ONE])
+    ];
+
 }
 
 
 
 /// The negative of an `Octavian` element is the octavian with the opposite coefficients.
-impl<T: Clone + Num + std::iter::Sum + From<i8> + Neg<Output = T> + ConstZero> Neg for Octavian<T> {
+impl<T: Clone + Num + std::iter::Sum + From<i8> + Neg<Output = T> + ConstZero + ConstOne> Neg for Octavian<T> {
     type Output = Self;
     fn neg(self) -> Self::Output {
         self.scale((-1).into())
@@ -420,7 +431,7 @@ impl<T: Clone + Num> Add for Octavian<T>
 }
 
 /// Implement right scalar multiplication on an Octavian<T> where T is the scalar. 
-impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero> Mul<T> for Octavian<T>
+impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Mul<T> for Octavian<T>
 {
     type Output = Octavian<T>;
     fn mul(self, rhs: T) -> Octavian<T> {
@@ -429,7 +440,7 @@ impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero> Mul<T> for Octavian
 }
 
 /// Implement right scalar division on an Octavian<T> where T is the scalar. 
-impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero> Div<T> for Octavian<T>
+impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Div<T> for Octavian<T>
 {
     type Output = Octavian<T>;
     fn div(self, rhs: T) -> Octavian<T> {
@@ -462,7 +473,7 @@ impl<T: Clone + Num> Sub for Octavian<T>
 //     matrix.map(|row| row.map(|x| x * t.clone()))
 // }
 
-impl<T: Clone + Copy + Num + std::iter::Sum + From<i8> + ConstZero> Octavian<T> {
+impl<T: Clone + Copy + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Octavian<T> {
     /// Computes the left adjoint matrix of an `Octavian` element in the basis given by the coefficients.
     pub fn left_adjoint_matrix(&self) -> [[T; 8]; 8] {
         // Get the typed adjoint matrices.
@@ -493,7 +504,7 @@ impl<T: Clone + Copy + Num + std::iter::Sum + From<i8> + ConstZero> Octavian<T> 
 }
 
 /// Implements multiplication for `Octavian` elements.
-impl<T: Clone + Copy + Num + std::iter::Sum + From<i8> + ConstZero> Mul for Octavian<T>
+impl<T: Clone + Copy + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Mul for Octavian<T>
 {
     type Output = Self;
     fn mul(self, other: Self) -> Self {
