@@ -1,5 +1,6 @@
 use num_traits::{ConstOne, ConstZero, Inv, MulAdd, Num, One, Pow, Signed, Zero};
 use core::ops::{Add, Div, Mul, Neg, Rem, Sub};
+use rayon::prelude::*;
 
 /// The octavian integers are defined in Conway and Smith, and elsewhere. 
 #[derive(PartialEq, Eq, Copy, Clone, Hash, Debug, Default)]
@@ -23,7 +24,7 @@ impl<T> Octavian<T> {
     }
 }
 
-impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Octavian<T> {
+impl<T: Clone + Copy + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Octavian<T> {
     /// Multiplies `self` by the scalar `t`.
     #[inline]
     pub fn scale(&self, t: T) -> Self {
@@ -55,22 +56,17 @@ impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Octavian
     /// Returns the inner product of two `Octavian` elements.
     pub fn inner_product(&self, rhs: Self) -> T {
         let g: [[i8; 8]; 8] = Self::GRAM_MATRIX;
-        // Multiply the rhs by the gram matrix. 
-        let temp = 
-        g.iter()
-        .map(|row| 
-            row.clone()
-            .into_iter()
-            .zip(rhs.coefficients.clone())
-            .map(|(x, y)| T::from(x) * y)
+        let temp = g.iter().map(|row| {
+            row.iter()
+                .zip(&rhs.coefficients)
+                .map(|(&x, &y)| T::from(x) * y)
+                .sum()
+        });
+        self.coefficients
+            .iter()
+            .zip(temp)
+            .map(|(&x, y)| x * y)
             .sum()
-        );
-        // Take the Euclidean inner product of self and the G*rhs vector. 
-        self.coefficients.clone()
-        .into_iter()
-        .zip(temp)
-        .map(|(x,y)| x * y)
-        .sum()
     }
 
     /// Returns the norm of an octavian.
@@ -387,7 +383,7 @@ impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Octavian
 
 
 /// The negative of an `Octavian` element is the octavian with the opposite coefficients.
-impl<T: Clone + Num + std::iter::Sum + From<i8> + Neg<Output = T> + ConstZero + ConstOne> Neg for Octavian<T> {
+impl<T: Clone + Copy + Num + std::iter::Sum + From<i8> + Neg<Output = T> + ConstZero + ConstOne> Neg for Octavian<T> {
     type Output = Self;
     fn neg(self) -> Self::Output {
         self.scale((-1).into())
@@ -414,7 +410,7 @@ impl<T: ConstZero + From<i8>> Octavian<T> {
 }
 
 /// Implements addition for `Octavian` elements, which is just the sum of the coefficients.
-impl<T: Clone + Num> Add for Octavian<T>
+impl<T: Clone + Copy + Num> Add for Octavian<T>
 {
     type Output = Self;
     fn add(self, other: Self) -> Self {
@@ -431,7 +427,7 @@ impl<T: Clone + Num> Add for Octavian<T>
 }
 
 /// Implement right scalar multiplication on an Octavian<T> where T is the scalar. 
-impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Mul<T> for Octavian<T>
+impl<T: Clone + Copy + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Mul<T> for Octavian<T>
 {
     type Output = Octavian<T>;
     fn mul(self, rhs: T) -> Octavian<T> {
@@ -440,7 +436,7 @@ impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Mul<T> f
 }
 
 /// Implement right scalar division on an Octavian<T> where T is the scalar. 
-impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Div<T> for Octavian<T>
+impl<T: Clone + Copy + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Div<T> for Octavian<T>
 {
     type Output = Octavian<T>;
     fn div(self, rhs: T) -> Octavian<T> {
@@ -449,7 +445,7 @@ impl<T: Clone + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> Div<T> f
 }
 
 /// Implements subtraction for `Octavian` elements, which is just the difference of the coefficients.
-impl<T: Clone + Num> Sub for Octavian<T>
+impl<T: Clone + Copy + Num> Sub for Octavian<T>
 {
     type Output = Self;
     fn sub(self, other: Self) -> Self {
@@ -483,18 +479,10 @@ impl<T: Clone + Copy + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> O
         let mut result = [[T::zero(); 8]; 8];
 
         // Iterate over the adjoint matrices and coefficients.
-        for (matrix, coeff) in adj_matrices.iter().zip(self.coefficients.iter()) {
-            // Scale the current matrix by the coefficient.
-            let scaled_matrix: [[T; 8]; 8] = matrix.map(|row: [i8; 8]| {
-                row.map(|x: i8| T::from(x) * coeff.clone())
-            });
-            
-            // scale_matrix(matrix.clone(), coeff.clone());
-
-            // Add the scaled matrix to the result.
-            for (i, row) in scaled_matrix.iter().enumerate() {
-                for (j, value) in row.iter().enumerate() {
-                    result[i][j] = result[i][j].clone() + value.clone();
+        for (matrix, &coeff) in adj_matrices.iter().zip(&self.coefficients) {
+            for (i, row) in matrix.iter().enumerate() {
+                for (j, &value) in row.iter().enumerate() {
+                    result[i][j] = result[i][j] + T::from(value) * coeff;
                 }
             }
         }
@@ -517,7 +505,7 @@ impl<T: Clone + Copy + Num + std::iter::Sum + From<i8> + ConstZero + ConstOne> M
             result_coefficients[i] = row
                 .iter()
                 .zip(other.coefficients.iter())
-                .map(|(a, b)| a.clone() * b.clone())
+                .map(|(a, b)| *a * *b)
                 .sum();
         }
 
@@ -555,6 +543,20 @@ mod tests {
     }
 
     #[test]
+    /// Ensure that the inner product works.
+    fn test_inner_product() {
+        let b = Octavian::<isize>::BASIS;
+        assert_eq!(-1, b[1].inner_product(b[3]));
+    }
+
+    #[test]
+    /// Ensure that the norm works.
+    fn test_norm() {
+        let b = Octavian::<isize>::BASIS;
+        assert_eq!(2, b[1].norm());
+    }
+
+    #[test]
     /// Ensure that the 240 Octavian units form a closed set under multiplication.
     fn closure_of_units() {
         let mut units: HashSet<Octavian<i8>> = HashSet::new();
@@ -566,9 +568,28 @@ mod tests {
         let mut result = HashSet::<Octavian<i8>>::new();
         for u in &units {
             for v in &units {
-                result.insert(u.clone() * v.clone());    
+                result.insert(*u * *v);
             }
         }
         assert_eq!(240, result.len())
     }    
+
+    #[test]
+    fn closure_of_units_parallel() {
+        let units: HashSet<Octavian<i8>> = Octavian::<i8>::OCTAVIAN_UNITS_COEFFICIENTS
+            .iter()
+            .map(|&u| Octavian::new(u))
+            .collect();
+
+        assert_eq!(240, units.len());
+
+        let result: HashSet<Octavian<i8>> = units
+            .par_iter()
+            .flat_map(|u| {
+                units.par_iter().map(move |v| u.clone() * v.clone())
+            })
+            .collect();
+
+        assert_eq!(240, result.len());
+    }
 }
