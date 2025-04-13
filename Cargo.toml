@@ -6,5 +6,4 @@ edition = "2021"
 [dependencies]
 num = "0.4.3"
 num-traits = "0.2.19"
-polynomial = "0.2.6"
 rayon = "1.10.0"
