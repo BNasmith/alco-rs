@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "alco"
+name = "alco-rs"
 version = "0.1.0"
 dependencies = [
  "num",

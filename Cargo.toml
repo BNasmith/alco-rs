@@ -1,7 +1,13 @@
 [package]
-name = "alco"
+name = "alco-rs"
 version = "0.1.0"
 edition = "2021"
+autors = ["Benjamin Nasmith <bnasmith@proton.me>"]
+license = "MIT"
+homepage = "https://github.com/BNasmith/alco-rs"
+repository = "https://github.com/BNasmith/alco-rs"
+description = "Tools for algebraic combinatorics in Rust, including the octonion algebra and octavian integer ring."
+readme = false
 
 [dependencies]
 num = "0.4.3"
